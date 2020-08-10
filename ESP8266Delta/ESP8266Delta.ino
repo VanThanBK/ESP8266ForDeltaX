@@ -6,14 +6,17 @@
 char Ssid[32] = "";
 char Password[32] = "";
 
-int Port = 80;
+//int Port = 80;
+int Port = 8844;
 
 bool IsConnectedWifi;
+bool IsSSID;
+bool IsPSWD;
+bool IsWaitConnect;
 
 String inputString;
 bool stringComplete;
 
-int NumMode;
 long LastTime;
 
 WiFiServer Server(Port);
@@ -29,20 +32,25 @@ void loop() {
 	SettingWifi();
 	ReadSerialCommand();
 	ReadClient();
+	//delayMicroseconds(1);
 }
 
 void Init()
 {
+	delay(100);
 	Serial.begin(115200);
 	IsConnectedWifi = false;
-	NumMode = 0;
+	IsSSID = false;
+	IsPSWD = false;
+	IsWaitConnect = false;
+
+	delay(100);
 
 	loadCredentials();
 	ConnectWifi();
 	Server.begin();
 	client = Server.available();
 	LastTime = millis();
-	
 }
 
 void loadCredentials() {
@@ -146,17 +154,39 @@ void ReadSerialCommand()
 	String message = inputString.substring(0, 4);
 
 
-
 	if (message == "SSID")
 	{
 		inputString.substring(5).toCharArray(Ssid, 32);
-		NumMode = 2;
+		IsSSID = true;
+		Serial.println("Ok");
 	}
 
 	if (message == "PSWD")
 	{
 		inputString.substring(5).toCharArray(Password, 32);
-		NumMode = 4;
+		IsPSWD = true;
+		Serial.println("Ok");
+	}
+
+	if (message == "gSSI")
+	{
+		Serial.print("Ssidfb:");
+		Serial.println(Ssid);
+	}
+
+	if (message == "gPSW")
+	{
+		Serial.print("Pswdfb:");
+		Serial.println(Password);
+	}
+
+	if (message == "ESIP")
+	{
+		if (IsConnectedWifi)
+		{
+			Serial.print("ESPIP:");
+			Serial.println(WiFi.localIP());
+		}	
 	}
 
 	inputString = "";
@@ -169,14 +199,16 @@ void WaitSendIp()
 	{
 		Serial.print("ESPIP:");
 		Serial.println(WiFi.localIP());
-		NumMode = 6;
+		//delayMicroseconds(1);
+		//Serial.println("Wificon");
 		saveCredentials();
 	}
 	else
 	{
+		Serial.println("cncnnww");
+		//delayMicroseconds(1);
 		loadCredentials();
-		ConnectWifi();
-		NumMode = 7;
+		//ConnectWifi();
 	}
 }
 
@@ -194,71 +226,30 @@ bool WaitMillis()
 
 void SettingWifi()
 {
-	switch (NumMode)
+	if (IsSSID && IsPSWD)
 	{
-	case 0:
-		if (WaitMillis())
-		{
-			if (CheckConnectWifi())
-			{
-				Serial.print("ESPIP:");
-				Serial.println(WiFi.localIP());
-				Serial.println("SAVEIP");
-			}
-		}
-		else
-		{
-			break;
-		}
-		Serial.println("gSsid");
-		Serial.println("gSsid");
-		NumMode = 1;
-		break;
-	case 2:
-		Serial.println("gPswd");
-		NumMode = 3;
-		break;
-	case 4:
-		if (strlen(Ssid) > 0)
-		{
-			ConnectWifi();
-			LastTime = millis();
-			NumMode = 5;
-		}
-		break;
-	case 5:
+		ConnectWifi();
+		IsWaitConnect = true;
+		IsSSID = false;
+		IsPSWD = false;
+		LastTime = millis();
+	}
+	
+	if (IsWaitConnect)
+	{
 		if (WaitMillis())
 		{
 			WaitSendIp();
+			IsWaitConnect = false;
 		}
-		break;
-	case 6:
-		Serial.println("SAVEIP");
-		NumMode = 8;
-		break;
-	case 7:
-		if (WaitMillis())
-		{
-			if (CheckConnectWifi())
-			{
-				Serial.print("ESPIP:");
-				Serial.println(WiFi.localIP());
-				Serial.println("SAVEIP");
-			}
-			NumMode = 8;
-		}
-	case 8:
-		if (CheckConnectWifi())
-		{
-		}
-		else
+	}
+
+	if (!IsWaitConnect)
+	{
+		if (!IsConnectedWifi)
 		{
 			ConnectWifi();
 		}
-
-		break;
-	default:
-		break;
 	}
 }
 
